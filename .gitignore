@@ -1,0 +1,30 @@
+# Environment
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+
+# Data & logs (local only)
+data/
+logs/
+
+# Planning files
+task_plan.md
+findings.md
+progress.md
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
