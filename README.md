@@ -21,27 +21,6 @@ A personal restaurant recommendation chatbot built on Erin's curated Google Maps
 | Restaurant data | Google Places API |
 | Sync | GitHub Actions (weekly cron) |
 
-## Running locally
-
-```bash
-# Install dependencies
-pip install -r requirements.txt
-
-# Copy and fill in your environment variables
-cp .env.example .env
-
-# Run the app
-streamlit run app/streamlit_app.py
-```
-
-## Environment variables
-
-```
-GOOGLE_PLACES_API_KEY=
-OPENAI_API_KEY=
-SUPABASE_URL=
-SUPABASE_SERVICE_KEY=
-```
 
 ## Example queries
 
