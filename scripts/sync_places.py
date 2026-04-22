@@ -283,8 +283,25 @@ def sync():
         time.sleep(0.1)
 
     if resolved:
-        db_records = [{k: v for k, v in p.items() if not k.startswith("_")} for p in resolved]
-        repo.upsert_restaurants_batch(db_records)
+        # Deduplicate by google_place_id (keep first occurrence)
+        seen_ids = set()
+        unique_resolved = []
+        for p in resolved:
+            gid = p["google_place_id"]
+            if gid not in seen_ids:
+                unique_resolved.append(p)
+                seen_ids.add(gid)
+
+        db_records = [{k: v for k, v in p.items() if not k.startswith("_")} for p in unique_resolved]
+        try:
+            repo.upsert_restaurants_batch(db_records)
+        except Exception as e:
+            print(f"Error during batch upsert: {e}. Attempting individual upserts...")
+            for record in db_records:
+                try:
+                    repo.upsert_restaurant(record)
+                except Exception as record_error:
+                    print(f"  Failed to upsert {record.get('name', 'Unknown')}: {record_error}")
 
     # Enrich newly added places: cuisine, neighborhood, vibes, notes, embedding
     new_places = [p for p in resolved if p["google_place_id"] not in existing_ids]
