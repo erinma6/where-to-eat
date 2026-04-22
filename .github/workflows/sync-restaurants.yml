@@ -2,7 +2,7 @@ name: Sync Restaurants Weekly
 
 on:
   schedule:
-    - cron: '0 9 * * 1'  # Every Monday at 9 AM UTC
+    - cron: '0 14 * * 1'  # Every Monday at 9 AM Eastern (2 PM UTC)
   workflow_dispatch:  # Allow manual trigger
 
 jobs:
