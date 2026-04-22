@@ -13,6 +13,10 @@ pgvector>=0.2.0
 
 # HTTP requests
 httpx>=0.25.0
+requests>=2.31.0
+
+# Web scraping
+playwright>=1.40.0
 
 # Utilities
 tqdm>=4.0.0
