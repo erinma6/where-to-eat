@@ -367,7 +367,7 @@ def main():
                 parser = get_query_parser()
 
                 match = re.search(r'\b(\d+)\s*(?:results?|options?|suggestions?)?\b', prompt.lower())
-                num_results = int(match.group(1)) if match else 5
+                num_results = int(match.group(1)) if match else 3
 
                 restaurant_match = re.search(r'(?:about|info|details|more)\s+(?:the\s+)?(.+?)(?:\?|$)', prompt, re.IGNORECASE)
                 is_specific_query = bool(re.search(r'(?:tell me more|more details|about|info for)', prompt, re.IGNORECASE))

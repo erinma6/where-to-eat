@@ -98,28 +98,28 @@ class SearchService:
         self.client: Client = create_client(self.supabase_url, self.supabase_key)
         self.openai = OpenAIClient()
 
-    def _rerank_by_rating(self, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """
-        Re-rank search results by combining semantic similarity with rating.
+    # Minimum cosine similarity to include a result. Below this the match is
+    # considered too loose to be useful. Range 0–1; raise to be stricter.
+    MIN_SIMILARITY = 0.25
 
-        Score = 0.6 * similarity + 0.4 * normalized_rating
-        This gives 60% weight to semantic relevance and 40% to rating quality.
+    def _rerank_by_rating(self, results: List[Dict[str, Any]], min_similarity: Optional[float] = None) -> List[Dict[str, Any]]:
+        """
+        Filter by similarity threshold, then re-rank by combining semantic
+        similarity (75%) and rating (25%).
         """
         if not results:
             return results
 
+        threshold = min_similarity if min_similarity is not None else self.MIN_SIMILARITY
+        results = [r for r in results if (r.get('similarity') or 0) >= threshold]
+
         def calculate_score(r):
             similarity = r.get('similarity', 0)
-            # Get rating, default to 3.5 if not present (midpoint)
             rating = r.get('rating', 3.5) or 3.5
-            # Normalize rating from 0-5 scale to 0-1
             normalized_rating = rating / 5.0
-            # Weighted combination: 60% similarity, 40% rating
-            return 0.6 * similarity + 0.4 * normalized_rating
+            return 0.75 * similarity + 0.25 * normalized_rating
 
-        # Sort by combined score (descending)
-        reranked = sorted(results, key=calculate_score, reverse=True)
-        return reranked
+        return sorted(results, key=calculate_score, reverse=True)
 
     async def hybrid_search(
         self,
@@ -193,50 +193,40 @@ class SearchService:
                     "limit_count": limit * 2  # Get more results, we'll filter by borough afterward
                 }).execute()
 
-                if result.data:
-                    results = result.data
+                results = result.data if result.data else []
+                results = self._rerank_by_rating(results)
 
-                    # Re-rank results to prioritize both semantic similarity AND rating
-                    # Using weighted combination: 60% similarity + 40% rating (normalized)
-                    results = self._rerank_by_rating(results)
+                if use_borough:
+                    borough_lower = filters.neighborhood.lower()
+                    valid_neighborhoods = [n.lower() for n in borough_neighborhoods]
+                    search_terms = [borough_lower] + valid_neighborhoods
 
-                    # If borough was specified, filter results to only include neighborhoods in that borough
-                    # OR restaurants whose address contains the borough/neighborhood
-                    if use_borough:
-                        borough_lower = filters.neighborhood.lower()
-                        valid_neighborhoods = [n.lower() for n in borough_neighborhoods]
-                        search_terms = [borough_lower] + valid_neighborhoods
+                    def is_in_borough(r):
+                        r_neighborhood = r.get('neighborhood')
+                        if r_neighborhood and r_neighborhood.lower() in valid_neighborhoods:
+                            return True
+                        addr = r.get('address', '').lower()
+                        return any(term in addr for term in search_terms)
 
-                        def is_in_borough(r):
-                            # Check neighborhood field
-                            r_neighborhood = r.get('neighborhood')
-                            if r_neighborhood and r_neighborhood.lower() in valid_neighborhoods:
-                                return True
-                            # Check address contains borough or neighborhood
-                            addr = r.get('address', '').lower()
-                            if any(term in addr for term in search_terms):
-                                return True
-                            return False
+                    results = [r for r in results if is_in_borough(r)]
 
-                        results = [r for r in results if is_in_borough(r)]
+                # Return what matched — don't fall back to unfiltered results
+                # when the user specified criteria; an empty list is more honest.
+                return results[:limit]
 
-                    return results[:limit]
-
-        # Fallback: pure semantic search (vector similarity only)
-        # This works even without structured data
+        # No filters specified: pure semantic search with threshold applied.
         result = self.client.rpc("hybrid_search", {
             "query_embedding": query_embedding,
             "query_cuisine": None,
             "query_vibes": None,
             "query_neighborhood": None,
             "min_rating": None,
-            "limit_count": limit
+            "limit_count": limit * 2
         }).execute()
 
         results = result.data if result.data else []
-        # Re-rank by rating
         results = self._rerank_by_rating(results)
-        return results
+        return results[:limit]
 
     async def basic_search(
         self,
